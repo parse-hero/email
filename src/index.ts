@@ -1,5 +1,5 @@
-import { addr_spec } from "./tokens/addressSpecification.ts";
-import { runToEnd } from "parsinator";
+import { addr_spec } from "./tokens";
+import { runToEnd } from "./parse.ts";
 
 export interface ValidEmailOptions {
 	preprocess(input: string): string;

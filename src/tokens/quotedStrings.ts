@@ -1,7 +1,7 @@
-import { anyOf, either, inSequence, surroundWith } from "../combinators.ts";
-import { many, maybe, regex } from "parsinator";
+import { anyOf, either, inSequence, many, maybe, regex, surroundWith } from "../combinators.ts";
 import { DQUOTE, obs_qtext } from "./index.ts";
 import { CFWS, FWS, quoted_pair } from "./topLevel.ts";
+import { join } from "../transformers.ts";
 
 /*
 	qtext           =   %d33-39 /          ; Printable US-ASCII
@@ -10,7 +10,7 @@ import { CFWS, FWS, quoted_pair } from "./topLevel.ts";
                        obs-qtext
  */
 export const qtext = () => anyOf([
-	regex(/[\x21\x23-\x5B\x5D-\x7E]/),
+	regex(/^[\x21\x23-\x5B\x5D-\x7E]/),
 	obs_qtext(),
 ]);
 
@@ -30,11 +30,13 @@ export const quoted_string = () => surroundWith(
 	surroundWith(
 		DQUOTE,
 		inSequence([
-			many(inSequence([
-				maybe(FWS()),
-				qcontent(),
-			])),
+			many(
+				inSequence([
+					maybe(FWS()),
+					qcontent(),
+				]).map(join)
+			),
 			maybe(FWS()),
-		])
+		]).map(join)
 	)
 );

@@ -1,3 +1,5 @@
+/// <reference types="vitest" />
+
 import { defineConfig } from "vite";
 import path from "path";
 
@@ -27,6 +29,10 @@ export default defineConfig({
 			},
 		},
 		emptyOutDir: true,
-		outDir: "dist",
+		outDir: here("dist"),
+	},
+	test: {
+		root: here("tests"),
+		environment: "node",
 	},
 })

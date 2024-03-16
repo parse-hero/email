@@ -1,9 +1,10 @@
-import { anyOf, either, inSequence } from "../combinators.ts";
+import { anyOf, char, either, inSequence, many, many1, maybe, regex } from "../combinators.ts";
 import { atom } from "./atom.ts";
 import { quoted_string } from "./quotedStrings";
-import { many, many1, maybe, regex, str } from "parsinator";
-import { FWS } from "./topLevel.ts";
+// import { many, many1, maybe, regex, str } from "parsinator";
+import { CFWS, FWS } from "./topLevel.ts";
 import { BACKSLASH, CR, LF, NUL, VCHAR, WSP } from "./core.ts";
+import { join } from "../transformers.ts";
 
 // word            =   atom / quoted-string
 export const word = () => either(
@@ -20,12 +21,14 @@ export const phrase = () => either(
 // unstructured    =   (*([FWS] VCHAR) *WSP) / obs-unstruct
 export const unstructured = () => either(
 	inSequence([
-		many(inSequence([
-			maybe(FWS()),
-			VCHAR()
-		])),
+		many(
+			inSequence([
+				maybe(FWS()),
+				VCHAR()
+			]).map(join)
+		),
 		many(WSP()),
-	]),
+	]).map(join),
 	obs_unstruct(),
 );
 
@@ -38,7 +41,7 @@ export const unstructured = () => either(
                        %d14-31 /          ;  return, line feed, and
                        %d127              ;  white space characters
  */
-export const obs_NO_WS_CTL = () => regex(/[\x01-\x08\x11\x12\x14-\x1F\x7F]/);
+export const obs_NO_WS_CTL = () => regex(/^[\x01-\x08\x11\x12\x14-\x1F\x7F]/);
 
 // obs-utext       =   %d0 / obs-NO-WS-CTL / VCHAR
 export const obs_utext = () => anyOf([
@@ -56,7 +59,7 @@ export const obs_qp = () => inSequence([
 		LF(),
 		CR(),
 	]),
-]);
+]).map(join);
 
 // obs-ctext       =   obs-NO-WS-CTL
 export const obs_ctext = () => obs_NO_WS_CTL();
@@ -64,20 +67,28 @@ export const obs_ctext = () => obs_NO_WS_CTL();
 // obs-qtext       =   obs-NO-WS-CTL
 export const obs_qtext = () => obs_NO_WS_CTL();
 
-// obs-phrase
-//  TODO
-export const obs_phrase = () => str("TODO");
+// obs-phrase      =   word *(word / "." / CFWS)
+export const obs_phrase = () => inSequence([
+	word(),
+	many(anyOf([
+		word(),
+		char("."),
+		CFWS(),
+	]))
+]).map(join);
 
 // obs-unstruct    =   *((*LF *CR *(obs-utext *LF *CR)) / FWS)
 export const obs_unstruct = () => many(either(
 	inSequence([
 		many(LF()),
 		many(CR()),
-		many(inSequence([
-			obs_utext(),
-			many(LF()),
-			many(CR()),
-		]))
-	]),
+		many(
+			inSequence([
+				obs_utext(),
+				many(LF()),
+				many(CR()),
+			]).map(join)
+		)
+	]).map(join),
 	FWS()
 ));

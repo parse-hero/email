@@ -1,11 +1,20 @@
 // cf. https://datatracker.ietf.org/doc/html/rfc5322#section-3.4
 
-import { anyOf, commaSeparated1, dotSeparated1, either, inSequence, surroundWith } from "../combinators.ts";
-import { many, many1, maybe, regex, str, surround } from "parsinator";
+import {
+	anyOf, char,
+	commaSeparated1,
+	dotSeparated1,
+	either,
+	inSequence, many, many1,
+	maybe, regex,
+	surround,
+	surroundWith,
+} from "../combinators.ts";
 import { CFWS, FWS, quoted_pair } from "./topLevel.ts";
 import { obs_NO_WS_CTL, phrase, word } from "./miscTokens.ts";
 import { atom, dot_atom } from "./atom.ts";
 import { quoted_string } from "./quotedStrings.ts";
+import { join } from "../transformers.ts";
 
 // address         =   mailbox / group
 export const address = () => either(
@@ -23,7 +32,7 @@ export const mailbox = () => either(
 export const name_addr = () => inSequence([
 	maybe(display_name()),
 	angle_addr(),
-]);
+]).map(join);
 
 /*
 	angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
@@ -33,9 +42,9 @@ export const angle_addr = () => either(
 	surroundWith(
 		() => maybe(CFWS()),
 		surround(
-			str("<"),
+			char("<"),
 			addr_spec(),
-			str(">"),
+			char(">"),
 		)
 	),
 	obs_angle_addr()
@@ -44,11 +53,11 @@ export const angle_addr = () => either(
 // group           =   display-name ":" [group-list] ";" [CFWS]
 export const group = () => inSequence([
 	display_name(),
-	str(":"),
+	char(":"),
 	maybe(group_list()),
-	str(";"),
+	char(";"),
 	maybe(CFWS()),
-]);
+]).map(join);
 
 // display-name    =   phrase
 export const display_name = () => phrase();
@@ -75,9 +84,9 @@ export const group_list = () => anyOf([
 // addr-spec       =   local-part "@" domain
 export const addr_spec = () => inSequence([
 	local_part(),
-	str("@"),
+	char("@"),
 	domain(),
-]);
+]).map(join);
 
 // local-part      =   dot-atom / quoted-string / obs-local-part
 export const local_part = () => anyOf([
@@ -97,15 +106,17 @@ export const domain = () => anyOf([
 export const domain_literal = () => surroundWith(
 	() => maybe(CFWS()),
 	surround(
-		str("["),
+		char("["),
 		inSequence([
-			many(inSequence([
-				maybe(FWS()),
-				dtext(),
-			])),
+			many(
+				inSequence([
+					maybe(FWS()),
+					dtext(),
+				]).map(join)
+			),
 			maybe(FWS()),
-		]),
-		str("]"),
+		]).map(join),
+		char("]"),
 	)
 );
 
@@ -115,7 +126,7 @@ dtext           =   %d33-90 /          ; Printable US-ASCII
                        obs-dtext          ;  "[", "]", or "\"
  */
 export const dtext = () => either(
-	regex(/[\x21-\x5A\x5E-\x7E]/),
+	regex(/^[\x21-\x5A\x5E-\x7E]/),
 	obs_dtext()
 );
 
@@ -126,20 +137,20 @@ export const dtext = () => either(
 export const obs_angle_addr = () => surroundWith(
 	() => maybe(CFWS()),
 	surround(
-		str("<"),
+		char("<"),
 		inSequence([
 			obs_route(),
 			addr_spec(),
-		]),
-		str(">"),
+		]).map(join),
+		char(">"),
 	)
 );
 
 // obs-route       =   obs-domain-list ":"
 export const obs_route = () => inSequence([
 	obs_domain_list(),
-	str(":"),
-]);
+	char(":"),
+]).map(join);
 
 /*
 obs-domain-list =   *(CFWS / ",") "@" domain
@@ -148,60 +159,74 @@ obs-domain-list =   *(CFWS / ",") "@" domain
 export const obs_domain_list = () => inSequence([
 	many(either(
 		CFWS(),
-		str(","),
+		char(","),
 	)),
-	str("@"),
+	char("@"),
 	domain(),
-	many(inSequence([
-		str(","),
-		maybe(CFWS()),
-		maybe(inSequence([
-			str("@"),
-			domain(),
-		]))
-	]))
-]);
+	many(
+		inSequence([
+			char(","),
+			maybe(CFWS()),
+			maybe(
+				inSequence([
+					char("@"),
+					domain(),
+				]).map(join)
+			)
+		]).map(join)
+	)
+]).map(join);
 
 // obs-mbox-list   =   *([CFWS] ",") mailbox *("," [mailbox / CFWS])
 export const obs_mbox_list = () => inSequence([
-	many(inSequence([
-		maybe(CFWS()),
-		str(",")
-	])),
+	many(
+		inSequence([
+			maybe(CFWS()),
+			char(",")
+		]).map(join)
+	),
 	mailbox(),
-	many(inSequence([
-		str(","),
-		maybe(either(
-			mailbox(),
-			CFWS()
-		))
-	])),
-]);
+	many(
+		inSequence([
+			char(","),
+			maybe(either(
+				mailbox(),
+				CFWS()
+			))
+		]).map(join)
+	),
+]).map(join);
 
 // obs-addr-list   =   *([CFWS] ",") address *("," [address / CFWS])
 export const obs_addr_list = () => inSequence([
-	many(inSequence([
-		maybe(CFWS()),
-		str(",")
-	])),
+	many(
+		inSequence([
+			maybe(CFWS()),
+			char(",")
+		]).map(join)
+	),
 	address(),
-	many(inSequence([
-		str(","),
-		maybe(either(
-			address(),
-			CFWS()
-		))
-	])),
-]);
+	many(
+		inSequence([
+			char(","),
+			maybe(either(
+				address(),
+				CFWS()
+			))
+		]).map(join)
+	),
+]).map(join);
 
 // obs-group-list  =   1*([CFWS] ",") [CFWS]
 export const obs_group_list = () => inSequence([
-	many1(inSequence([
-		maybe(CFWS()),
-		str(",")
-	])),
+	many1(
+		inSequence([
+			maybe(CFWS()),
+			char(",")
+		]).map(join)
+	),
 	maybe(CFWS()),
-]);
+]).map(join);
 
 // obs-local-part  =   word *("." word)
 export const obs_local_part = () => dotSeparated1(word());

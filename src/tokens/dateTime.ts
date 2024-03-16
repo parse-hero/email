@@ -1,27 +1,38 @@
 // cf. https://datatracker.ietf.org/doc/html/rfc5322#section-3.3
 
-import { either, inSequence, atLeastTimes, repeated, surroundWith, anyStringFrom } from "../combinators.ts";
+import {
+	either,
+	inSequence,
+	atLeastTimes,
+	repeated,
+	surroundWith,
+	anyStringFrom,
+	maybe,
+	char, regex,
+} from "../combinators.ts";
 import { CFWS, FWS } from "./topLevel.ts";
-import { maybe, regex, str } from "parsinator";
 import { DIGIT } from "./core.ts";
+import { join, orEmptyString } from "../transformers.ts";
 
 // date-time       =   [ day-of-week "," ] date time [CFWS]
 export const date_time = () => inSequence([
-	maybe(inSequence([
-		day_of_week(),
-		str(","),
-	])),
+	maybe(
+		inSequence([
+			day_of_week(),
+			char(","),
+		]).map(join)
+	),
 	date(),
 	time(),
 	maybe(CFWS()),
-]);
+]).map(join);
 
 // day-of-week     =   ([FWS] day-name) / obs-day-of-week
 export const day_of_week = () => either(
 	inSequence([
 		maybe(FWS()),
 		day_name(),
-	]),
+	]).map(join),
 	obs_day_of_week(),
 );
 
@@ -44,7 +55,7 @@ export const date = () => inSequence([
 	day(),
 	month(),
 	year(),
-]);
+]).map(join);
 
 // day             =   ([FWS] 1*2DIGIT FWS) / obs-day
 export const day = () => either(
@@ -53,7 +64,7 @@ export const day = () => either(
 		DIGIT(),
 		maybe(DIGIT()),
 		FWS(),
-	]),
+	]).map(join),
 	obs_day(),
 );
 
@@ -90,18 +101,20 @@ export const year = () => either(
 export const time = () => inSequence([
 	time_of_day(),
 	zone(),
-]);
+]).map(join);
 
 // time-of-day     =   hour ":" minute [ ":" second ]
 export const time_of_day = () => inSequence([
 	hour(),
-	str(":"),
+	char(":"),
 	minute(),
-	maybe(inSequence([
-		str(":"),
-		second(),
-	])),
-]);
+	maybe(
+		inSequence([
+			char(":"),
+			second(),
+		]).map(join)
+	),
+]).map(join);
 
 // hour            =   2DIGIT / obs-hour
 export const hour = () => either(
@@ -125,9 +138,9 @@ export const second = () => either(
 export const zone = () => either(
 	inSequence([
 		FWS(),
-		regex(/[+-]/),
+		regex(/^[+-]/),
 		repeated(DIGIT, 4),
-	]),
+	]).map(join),
 	obs_zone(),
 );
 
@@ -146,7 +159,7 @@ export const obs_day = () => surroundWith(
 	inSequence([
 		DIGIT(),
 		maybe(DIGIT()),
-	])
+	]).map(join)
 );
 
 // obs-year        =   [CFWS] 2*DIGIT [CFWS]
@@ -157,19 +170,19 @@ export const obs_year = () => surroundWith(
 
 // obs-hour        =   [CFWS] 2DIGIT [CFWS]
 export const obs_hour = () => surroundWith(
-	() => maybe(CFWS()),
+	() => maybe(CFWS()).map(orEmptyString),
 	repeated(DIGIT, 2),
 );
 
 // obs-minute      =   [CFWS] 2DIGIT [CFWS]
 export const obs_minute = () => surroundWith(
-	() => maybe(CFWS()),
+	() => maybe(CFWS()).map(orEmptyString),
 	repeated(DIGIT, 2),
 );
 
 // obs-second      =   [CFWS] 2DIGIT [CFWS]
 export const obs_second = () => surroundWith(
-	() => maybe(CFWS()),
+	() => maybe(CFWS()).map(orEmptyString),
 	repeated(DIGIT, 2),
 );
 
@@ -200,5 +213,5 @@ export const obs_zone = () => either(
 		"PST",
 		"PDT",
 	] as const),
-	regex(/[\x41-\x49\x4B-\x5A\x61-\x69\x6B-\x7A]/),
+	regex(/^[\x41-\x49\x4B-\x5A\x61-\x69\x6B-\x7A]/),
 );
